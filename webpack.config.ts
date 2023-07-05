@@ -3,6 +3,7 @@ import * as webpack from 'webpack';
 const config: webpack.Configuration = {
 	mode: 'production',
 	entry: './src/index.ts',
+	devtool: 'source-map',
 	resolve: {
 		extensions: ['.ts'],
 	},

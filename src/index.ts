@@ -1,7 +1,10 @@
 import { Analyzer } from "./analyzer";
-import { Table } from "./page";
+import { TableAnalyze } from "./analyzeTable";
+import { Dictionary } from "./dictionary";
+import { TableDictionary } from "./dictionaryTable";
 
-const table = new Table(document.body)
-const analyzer = new Analyzer(table);
-table.goFunc = () => analyzer.start();
-table.onSelect = (x, y, v) => analyzer.updateFlagsCross(x, y, v);
+(window as any).analyzer = new Analyzer(
+	(window as any).dict = new Dictionary(),
+	(window as any).analyzeTable = new TableAnalyze(document.body),
+	(window as any).dictionaryTable = new TableDictionary(document.body),
+);

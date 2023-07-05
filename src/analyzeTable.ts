@@ -1,14 +1,14 @@
-import { AnalyzeOutput, AnalyzeTable, ValueInput, PossibleValue, SelectedValue } from "./sheetInterfaces";
+import { AnalyzeOutput, AnalyzeTable, ValueInput, PossibleValue, SelectedValue } from "./interfaces";
 import { clamp, noopFunc } from "./utils";
 
 class InputCell implements ValueInput {
 	readonly cellType = 'input';
-	private readonly element = document.createElement('td');
+	private readonly element: HTMLTableCellElement;
 	private readonly inputCoins = document.createElement('input');
 	private readonly inputVolts = document.createElement('input');
 	private canChangeInternal = true;
 	onEnterPressed = noopFunc;
-	constructor(parent: HTMLElement) {
+	constructor(parent: HTMLTableRowElement) {
 		this.inputCoins.type = 'number';
 		this.inputCoins.value = '0';
 		this.inputCoins.min = '0';
@@ -33,8 +33,12 @@ class InputCell implements ValueInput {
 			}
 		});
 
+		this.element = parent.insertCell();
 		this.element.append(this.inputCoins, this.inputVolts);
-		parent.appendChild(this.element);
+	}
+	reset() {
+		this.inputCoins.value = '0';
+		this.inputVolts.value = '0';
 	}
 	focus() {
 		this.inputCoins.select();
@@ -57,23 +61,28 @@ class InputCell implements ValueInput {
 
 class AnalyzeCell implements AnalyzeOutput {
 	readonly cellType = 'analyze';
-	private readonly element = document.createElement('td');
+	private readonly element: HTMLTableCellElement;
 	private readonly btnV: HTMLButtonElement;
 	private readonly btn1: HTMLButtonElement;
 	private readonly btn2: HTMLButtonElement;
 	private readonly btn3: HTMLButtonElement;
 	private possibleValuesInternal = PossibleValue.All;
-	private canSelectInternal = false;
 	private solvedValueInternal = SelectedValue.None;
 	selectedValue = SelectedValue.None;
-	constructor(parent: HTMLElement, public onSelectChange: (value: SelectedValue) => void) {
+	constructor(parent: HTMLTableRowElement, public onSelectChange: (value: SelectedValue) => void) {
+		this.element = parent.insertCell();
+
 		this.btnV = this.createButton(SelectedValue.Voltorb, '0');
 		this.btn1 = this.createButton(SelectedValue.Coin1, '1');
 		this.btn2 = this.createButton(SelectedValue.Coin2, '2');
 		this.btn3 = this.createButton(SelectedValue.Coin3, '3');
-
-		parent.appendChild(this.element);
-		this.canSelect = false;
+		this.reset();
+	}
+	reset() {
+		this.possibleValuesInternal = PossibleValue.All;
+		this.solvedValueInternal = SelectedValue.None;
+		this.selectedValue = SelectedValue.None;
+		this.updateButtonsStatus();
 	}
 	private createButton(value: SelectedValue, displayText: string) {
 		const button = document.createElement('button');
@@ -95,7 +104,7 @@ class AnalyzeCell implements AnalyzeOutput {
 	private updateButtonStatus(button: HTMLButtonElement, value: PossibleValue, index: SelectedValue) {
 		const isPossible = !!(value & this.possibleValuesInternal);
 		const isSelected = index === this.selectedValue;
-		button.disabled = this.canSelectInternal || !isPossible;
+		button.disabled = !isPossible;
 
 		if (index === SelectedValue.Voltorb) {
 			button.classList.add('voltorb');
@@ -138,13 +147,6 @@ class AnalyzeCell implements AnalyzeOutput {
 			}
 		}
 	}
-	get canSelect() {
-		return this.canSelectInternal;
-	}
-	set canSelect(value) {
-		this.canSelectInternal = value;
-		this.updateButtonsStatus();
-	}
 	get possibleValues() {
 		return this.possibleValuesInternal;
 	}
@@ -161,12 +163,40 @@ class AnalyzeCell implements AnalyzeOutput {
 	}
 }
 
-class Row {
-	readonly element = document.createElement('tr');
+class SolverRow {
+	readonly element: HTMLTableRowElement;
 	readonly cells: (InputCell | AnalyzeCell)[] = [];
 	lastEnterPress = noopFunc;
+	constructor(parent: HTMLTableElement) {
+		this.element = parent.insertRow();
+	}
+	resetAnalyzeCells() {
+		for (let i = 0; i < this.cells.length; i++) {
+			const cell = this.cells[i];
+			if (cell.cellType === 'analyze') {
+				cell.reset();
+			}
+		}
+	}
+	resetInputs() {
+		for (let i = 0; i < this.cells.length; i++) {
+			const cell = this.cells[i];
+			if (cell.cellType === 'input') {
+				cell.reset();
+				cell.canChange = true;
+			}
+		}
+	}
+	unlockInputs() {
+		for (let i = 0; i < this.cells.length; i++) {
+			const cell = this.cells[i];
+			if (cell.cellType === 'input') {
+				cell.canChange = true;
+			}
+		}
+	}
 	private static previousInputCell?: InputCell;
-	private static createInputCell(row: Row) {
+	private static createInputCell(row: SolverRow) {
 		const inputCell = new InputCell(row.element);
 		if (this.previousInputCell) {
 			this.previousInputCell.onEnterPressed = () => inputCell.focus();
@@ -174,22 +204,20 @@ class Row {
 		row.cells.push(inputCell);
 		this.previousInputCell = inputCell;
 	}
-	private static createGoButton(parent: HTMLElement, goFunc: () => void) {
+	private static createGoButton(parent: HTMLTableRowElement, goFunc: () => void) {
 		const button = document.createElement('button');
 		button.innerText = 'Go!';
 		button.style.width = '48px';
 		button.style.height = '48px';
 		button.onclick = () => goFunc();
 
-		const cell = document.createElement('td');
+		const cell = parent.insertCell();
 		cell.appendChild(button);
-		parent.appendChild(cell);
 
 		return button;
 	}
-	static createRowCells(parent: HTMLElement, onSelect: (x: number, value: SelectedValue) => void) {
-		const row = new this();
-		parent.appendChild(row.element);
+	static createRowCells(parent: HTMLTableElement, onSelect: (x: number, value: SelectedValue) => void) {
+		const row = new this(parent);
 
 		for (let i = 0; i < 5; i++) {
 			row.cells.push(new AnalyzeCell(row.element, value => onSelect(i, value)));
@@ -197,9 +225,8 @@ class Row {
 		this.createInputCell(row);
 		return row;
 	}
-	static createColCells(parent: HTMLElement, goFunc: () => void) {
-		const row = new this();
-		parent.appendChild(row.element);
+	static createColCells(parent: HTMLTableElement, goFunc: () => void) {
+		const row = new this(parent);
 
 		for (let i = 0; i < 5; i++) {
 			this.createInputCell(row);
@@ -210,17 +237,35 @@ class Row {
 	}
 }
 
-export class Table implements AnalyzeTable {
-	private readonly element = document.createElement('table');
-	private readonly rows: Row[] = [];
+export class TableAnalyze implements AnalyzeTable {
+	private readonly tableElement = document.createElement('table');
+	private readonly rows: SolverRow[] = [];
 	goFunc = noopFunc;
 	onSelect: (x: number, y: number, value: number) => void = noopFunc;
 	constructor(parent: HTMLElement) {
 		for (let i = 0; i < 5; i++) {
-			this.rows.push(Row.createRowCells(this.element, (x, value) => this.onSelect(x, i, value)));
+			this.rows.push(SolverRow.createRowCells(this.tableElement, (x, value) => this.onSelect(x, i, value)));
 		}
-		this.rows.push(Row.createColCells(this.element, () => this.goFunc()));
-		parent.appendChild(this.element);
+		this.rows.push(SolverRow.createColCells(this.tableElement, () => this.goFunc()));
+		parent.appendChild(this.tableElement);
+
+		const ctrlsDiv = document.createElement('div');
+		parent.appendChild(ctrlsDiv);
+
+		const btnResetAnalyze = document.createElement('button');
+		btnResetAnalyze.innerText = 'Reset analysis';
+		btnResetAnalyze.onclick = () => this.rows.forEach(r => r.resetAnalyzeCells());
+		ctrlsDiv.appendChild(btnResetAnalyze);
+
+		const btnUnlockInput = document.createElement('button');
+		btnUnlockInput.innerText = 'Unlock input';
+		btnUnlockInput.onclick = () => this.rows.forEach(r => r.unlockInputs());
+		ctrlsDiv.appendChild(btnUnlockInput);
+
+		const btnResetInput = document.createElement('button');
+		btnResetInput.innerText = 'Reset input';
+		btnResetInput.onclick = () => this.rows.forEach(r => r.resetInputs());
+		ctrlsDiv.appendChild(btnResetInput);
 	}
 	coinsRow(y: number) {
 		return (this.rows[y].cells[5] as InputCell).coins;
