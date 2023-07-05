@@ -1,0 +1,23 @@
+{
+  "name": "voltorbflip-solver",
+  "description": "The solver of Voltorb Flip minigame in Pokemon HGSS",
+  "version": "1.0.0",
+  "main": "index.html",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/"
+  },
+  "scripts": {
+    "build": "webpack",
+    "ts-watch": "tsc --watch --noEmit true",
+    "build-watch": "webpack --watch"
+  },
+  "author": "LittleFaith9",
+  "license": "ISC",
+  "devDependencies": {
+    "ts-loader": "^9.4.4",
+    "ts-node": "^10.9.1",
+    "webpack": "^5.88.1",
+    "webpack-cli": "^5.1.4"
+  }
+}
